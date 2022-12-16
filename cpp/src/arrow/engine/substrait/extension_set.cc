@@ -49,6 +49,16 @@ struct TypePtrHashEq {
   }
 };
 
+bool is_integer(const std::string& s) {
+  if (s.empty()) {
+    return false;
+  }
+  if (isdigit(s[0])) {
+    return true;
+  }
+  return s.size() > 1 && isdigit(s[1]);
+}
+
 }  // namespace
 
 std::string Id::ToString() const {
@@ -818,7 +828,12 @@ ExtensionIdRegistry::SubstraitCallToArrow DecodeRoundingMode(
     std::optional<std::vector<std::string> const*> s_arg = call.GetOption("s");
     if (s_arg.has_value()) {
       // Substrait will enforce at least one choice is present so this is safe.
-      options->ndigits = std::stol(s_arg.value()->at(0), NULLPTR, 10);
+      std::string s = s_arg.value()->at(0);
+      if (!is_integer(s)) {
+        return Status::Invalid("The s option must be an integer but ", s,
+                               " was provided.");
+      }
+      options->ndigits = std::stol(s, NULLPTR, 10);
     }
     options->round_mode = round_mode;
     return arrow::compute::call(function_name, std::move(value_args), std::move(options));

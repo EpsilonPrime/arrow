@@ -151,6 +151,15 @@ void CheckValidTestCases(const std::vector<FunctionTestCase>& valid_cases) {
   }
 }
 
+void CheckInvalidTestCases(const std::vector<FunctionTestCase>& error_cases) {
+  for (const FunctionTestCase& test_case : error_cases) {
+    ARROW_SCOPED_TRACE("func=", test_case.function_id.uri, "#",
+                       test_case.function_id.name);
+    std::shared_ptr<Table> output_table;
+    ASSERT_RAISES(Invalid, PlanFromTestCase(test_case, &output_table));
+  }
+}
+
 void CheckErrorTestCases(const std::vector<FunctionTestCase>& error_cases) {
   for (const FunctionTestCase& test_case : error_cases) {
     ARROW_SCOPED_TRACE("func=", test_case.function_id.uri, "#",
@@ -479,6 +488,17 @@ TEST(FunctionMapping, ValidCases) {
        "323.14",
        float64()}};
   CheckValidTestCases(valid_test_cases);
+}
+
+TEST(FunctionMapping, InvalidCases) {
+  const std::vector<FunctionTestCase> invalid_test_cases = {
+      {{kSubstraitRoundingFunctionsUri, "round"},
+       {"987.654"},
+       {{"s", {"nan"}}},
+       {float32()},
+       "",
+       float32()}};
+  CheckInvalidTestCases(invalid_test_cases);
 }
 
 TEST(FunctionMapping, ErrorCases) {
