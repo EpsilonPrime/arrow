@@ -57,6 +57,10 @@ struct FunctionTestCase {
   std::shared_ptr<DataType> expected_output_type;
 };
 
+struct FunctionRoundTestCase : FunctionTestCase {
+  std::vector<std::string> literal_arguments{};
+};
+
 Result<std::shared_ptr<Array>> GetArray(const std::string& value,
                                         const std::shared_ptr<DataType>& data_type) {
   StringBuilder str_builder;
@@ -531,6 +535,87 @@ TEST(FunctionMapping, UnrecognizedOptions) {
           std::string(kSubstraitArithmeticFunctionsUri) +
           "#add the plan requested the option overflow to be one of [SATURATE] but the "
           "only supported options are [SILENT, ERROR]"));
+}
+
+void CheckValidRoundTestCases(const std::vector<FunctionRoundTestCase>& valid_cases) {
+  for (const FunctionRoundTestCase& test_case : valid_cases) {
+    std::shared_ptr<Table> output_table;
+    ASSERT_OK_AND_ASSIGN(std::shared_ptr<compute::ExecPlan> plan,
+                         PlanFromTestCase(test_case, &output_table));
+    ASSERT_OK(plan->StartProducing());
+    ASSERT_FINISHES_OK(plan->finished());
+
+    // Could also modify the Substrait plan with an emit to drop the leading columns
+    int result_column = output_table->num_columns() - 1;  // last column holds result
+    ASSERT_OK_AND_ASSIGN(output_table, output_table->SelectColumns({result_column}));
+
+    ASSERT_OK_AND_ASSIGN(
+        std::shared_ptr<Table> expected_output,
+        GetOutputTable(test_case.expected_output, test_case.expected_output_type));
+    AssertTablesEqual(*expected_output, *output_table, /*same_chunk_layout=*/false);
+  }
+}
+
+TEST(FunctionMapping, ValidRoundCases) {
+  const std::initializer_list<FunctionRoundTestCase> valid_test_cases = {
+#if 0
+          {{{kSubstraitRoundingFunctionsUri, "round"},
+                   {"323.125"},
+                   {
+                           {"rounding", {"TIE_AWAY_FROM_ZERO"}},
+                   },
+                   {float32()},
+                   "323.13",
+                   float32()},
+                  {"2"}},
+          {{{kSubstraitRoundingFunctionsUri, "round"},
+                   {"323.125"},
+                   {
+                           {"rounding", {"TIE_AWAY_FROM_ZERO"}},
+                   },
+                   {float64()},
+                   "300",
+                   float64()},
+                  {"-2"}},
+          {{{kSubstraitRoundingFunctionsUri, "round"},
+                   {"323.135"},
+                   {
+                           {"rounding", {"TIE_TO_EVEN"}},
+                   },
+                   {float64()},
+                   "323.14",
+                   float64()},
+                  {"2"}},
+#endif
+          {{{kSubstraitRoundingFunctionsUri, "round_binary"},
+        {"323.125", "2"},
+        {
+            {"rounding", {"TIE_AWAY_FROM_ZERO"}},
+            {"testname", {"rba1"}},
+        },
+        {float32(), int32()},
+        "323.13",
+        float32()},
+              {"2"}},
+      {{{kSubstraitRoundingFunctionsUri, "round_binary"},
+        {"323.125", "-2"},
+        {
+            {"rounding", {"TIE_AWAY_FROM_ZERO"}},
+        },
+        {float64(), int32()},
+        "300",
+        float64()},
+              {"-2"}},
+      {{{kSubstraitRoundingFunctionsUri, "round_binary"},
+        {"323.135", "2"},
+        {
+            {"rounding", {"TIE_TO_EVEN"}},
+        },
+        {float64(), int32()},
+        "323.14",
+        float64()},
+              {"2"}}};
+  CheckValidRoundTestCases(valid_test_cases);
 }
 
 // For each aggregate test case we take in three values.  We compute the

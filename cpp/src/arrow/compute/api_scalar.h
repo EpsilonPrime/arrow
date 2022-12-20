@@ -91,6 +91,18 @@ class ARROW_EXPORT RoundOptions : public FunctionOptions {
   RoundMode round_mode;
 };
 
+        class ARROW_EXPORT RoundBinaryOptions : public FunctionOptions {
+        public:
+            explicit RoundBinaryOptions(int64_t ndigits = 0,
+                                  RoundMode round_mode = RoundMode::HALF_TO_EVEN);
+            static constexpr char const kTypeName[] = "RoundBinaryOptions";
+            static RoundBinaryOptions Defaults() { return RoundBinaryOptions(); }
+            /// Rounding precision (number of digits to round to)
+            int64_t ndigits;  // MEGAHACK -- Remove.
+            /// Rounding and tie-breaking mode
+            RoundMode round_mode;
+        };
+
 enum class CalendarUnit : int8_t {
   NANOSECOND,
   MICROSECOND,
@@ -880,6 +892,20 @@ Result<Datum> Sign(const Datum& arg, ExecContext* ctx = NULLPTR);
 /// \return the element-wise rounded value
 ARROW_EXPORT
 Result<Datum> Round(const Datum& arg, RoundOptions options = RoundOptions::Defaults(),
+                    ExecContext* ctx = NULLPTR);
+
+/// \brief Round a value to a given precision.
+///
+/// If argument is null the result will be null.
+///
+/// \param[in] arg1 the value rounded
+/// \param[in] arg2 the value rounded MEGAHACK
+/// \param[in] options rounding options (rounding mode and number of digits), optional
+/// \param[in] ctx the function execution context, optional
+/// \return the element-wise rounded value
+ARROW_EXPORT
+Result<Datum> RoundBinary(const Datum& arg1, const Datum& arg2,
+                          RoundOptions options = RoundOptions::Defaults(),
                     ExecContext* ctx = NULLPTR);
 
 /// \brief Round a value to a given multiple.

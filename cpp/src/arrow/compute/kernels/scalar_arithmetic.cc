@@ -822,6 +822,121 @@ struct Round<ArrowType, kRoundMode, enable_if_decimal<ArrowType>> {
   }
 };
 
+template <typename ArrowType, RoundMode RndMode, typename Enable = void>
+struct RoundBinary {
+  using CType = typename TypeTraits<ArrowType>::CType;
+  using State = RoundOptionsWrapper<RoundOptions>;
+
+  CType pow10;
+  int64_t ndigits;
+
+  explicit RoundBinary(const State& state, const DataType& out_ty)
+      : pow10(static_cast<CType>(state.pow10)), ndigits(state.options.ndigits) {}
+
+  template <typename T = ArrowType, typename CType = typename TypeTraits<T>::CType>
+  enable_if_floating_value<CType> Call(KernelContext* ctx, CType arg, Status* st) const {
+    // Do not process Inf or NaN because they will trigger the overflow error at end of
+    // function.
+    if (!std::isfinite(arg)) {
+      return arg;
+    }
+    auto round_val = ndigits >= 0 ? (arg * pow10) : (arg / pow10);
+    auto frac = round_val - std::floor(round_val);
+    if (frac != T(0)) {
+      // Use std::round() if in tie-breaking mode and scaled value is not 0.5.
+      if ((RndMode >= RoundMode::HALF_DOWN) && (frac != T(0.5))) {
+        round_val = std::round(round_val);
+      } else {
+        round_val = RoundImpl<CType, RndMode>::Round(round_val);
+      }
+      // Equality check is ommitted so that the common case of 10^0 (integer rounding)
+      // uses multiply-only
+      round_val = ndigits > 0 ? (round_val / pow10) : (round_val * pow10);
+      if (!std::isfinite(round_val)) {
+        *st = Status::Invalid("overflow occurred during rounding");
+        return arg;
+      }
+    } else {
+      // If scaled value is an integer, then no rounding is needed.
+      round_val = arg;
+    }
+    return round_val;
+  }
+};
+
+template <typename ArrowType, RoundMode kRoundMode>
+struct RoundBinary<ArrowType, kRoundMode, enable_if_decimal<ArrowType>> {
+  using CType = typename TypeTraits<ArrowType>::CType;
+  using State = RoundOptionsWrapper<RoundOptions>;
+
+  const ArrowType& ty;
+  int64_t ndigits;
+  int32_t pow;
+  // pow10 is "1" for the given decimal scale. Similarly half_pow10 is "0.5".
+  CType pow10, half_pow10, neg_half_pow10;
+
+  explicit RoundBinary(const State& state, const DataType& out_ty)
+      : RoundBinary(state.options.ndigits, out_ty) {}
+
+  explicit RoundBinary(int64_t ndigits, const DataType& out_ty)
+      : ty(checked_cast<const ArrowType&>(out_ty)),
+        ndigits(ndigits),
+        pow(static_cast<int32_t>(ty.scale() - ndigits)) {
+    if (pow >= ty.precision() || pow < 0) {
+      pow10 = half_pow10 = neg_half_pow10 = 0;
+    } else {
+      pow10 = CType::GetScaleMultiplier(pow);
+      half_pow10 = CType::GetHalfScaleMultiplier(pow);
+      neg_half_pow10 = -half_pow10;
+    }
+  }
+
+  template <typename T = ArrowType, typename CType = typename TypeTraits<T>::CType>
+  enable_if_decimal_value<CType> Call(KernelContext* ctx, CType arg, Status* st) const {
+    if (pow >= ty.precision()) {
+      *st = Status::Invalid("Rounding to ", ndigits,
+                            " digits will not fit in precision of ", ty);
+      return 0;
+    } else if (pow < 0) {
+      // no-op, copy output to input
+      return arg;
+    }
+
+    std::pair<CType, CType> pair;
+    *st = arg.Divide(pow10).Value(&pair);
+    if (!st->ok()) return arg;
+    // The remainder is effectively the scaled fractional part after division.
+    const auto& remainder = pair.second;
+    if (remainder == 0) return arg;
+    if (kRoundMode >= RoundMode::HALF_DOWN) {
+      if (remainder == half_pow10 || remainder == neg_half_pow10) {
+        // On the halfway point, use tiebreaker
+        RoundImpl<CType, kRoundMode>::Round(&arg, remainder, pow10, pow);
+      } else if (remainder.Sign() >= 0) {
+        // Positive, round up/down
+        arg -= remainder;
+        if (remainder > half_pow10) {
+          arg += pow10;
+        }
+      } else {
+        // Negative, round up/down
+        arg -= remainder;
+        if (remainder < neg_half_pow10) {
+          arg -= pow10;
+        }
+      }
+    } else {
+      RoundImpl<CType, kRoundMode>::Round(&arg, remainder, pow10, pow);
+    }
+    if (!arg.FitsInPrecision(ty.precision())) {
+      *st = Status::Invalid("Rounded value ", arg.ToString(ty.scale()),
+                            " does not fit in precision of ", ty);
+      return 0;
+    }
+    return arg;
+  }
+};
+
 template <typename DecimalType, RoundMode kMode, int32_t kDigits>
 Status FixedRoundDecimalExec(KernelContext* ctx, const ExecSpan& batch, ExecResult* out) {
   using Op = Round<DecimalType, kMode>;
@@ -1453,12 +1568,39 @@ struct RoundKernel {
         state.options.ToString());
   }
 };
+
+// Exec the round kernel for the given types
+template <typename Type, typename OptionsType,
+          template <typename, RoundMode, typename...> class OpImpl>
+struct RoundBinaryKernel {
+  static Status Exec(KernelContext* ctx, const ExecSpan& batch, ExecResult* out) {
+    using State = RoundOptionsWrapper<OptionsType>;
+    const auto& state = static_cast<const State&>(*ctx->state());
+    switch (state.options.round_mode) {
+      ROUND_CASE(DOWN)
+      ROUND_CASE(UP)
+      ROUND_CASE(TOWARDS_ZERO)
+      ROUND_CASE(TOWARDS_INFINITY)
+      ROUND_CASE(HALF_DOWN)
+      ROUND_CASE(HALF_UP)
+      ROUND_CASE(HALF_TOWARDS_ZERO)
+      ROUND_CASE(HALF_TOWARDS_INFINITY)
+      ROUND_CASE(HALF_TO_EVEN)
+      ROUND_CASE(HALF_TO_ODD)
+    }
+    DCHECK(false);
+    return Status::NotImplemented(
+        "Internal implementation error: round mode not implemented: ",
+        state.options.ToString());
+  }
+};
+
 #undef ROUND_CASE
 
 // Like MakeUnaryArithmeticFunction, but for unary rounding functions that control
 // kernel dispatch based on RoundMode, only on non-null output.
 template <template <typename, RoundMode, typename...> class Op, typename OptionsType>
-std::shared_ptr<ScalarFunction> MakeUnaryRoundFunction(std::string name,
+std::shared_ptr<ScalarFunction> MakeUnaryRoundFunction(const std::string& name,
                                                        FunctionDoc doc) {
   using State = RoundOptionsWrapper<OptionsType>;
   static const OptionsType kDefaultOptions = OptionsType::Defaults();
@@ -1487,6 +1629,42 @@ std::shared_ptr<ScalarFunction> MakeUnaryRoundFunction(std::string name,
     DCHECK_OK(func->AddKernel(
         {InputType(type_id)},
         is_decimal(type_id) ? OutputType(FirstType) : OutputType(ty), exec, State::Init));
+  }
+  AddNullExec(func.get());
+  return func;
+}
+
+template <template <typename, RoundMode, typename...> class Op, typename OptionsType>
+std::shared_ptr<ScalarFunction> MakeBinaryRoundFunction(const std::string& name,
+                                                        FunctionDoc doc) {
+  using State = RoundOptionsWrapper<OptionsType>;
+  static const OptionsType kDefaultOptions = OptionsType::Defaults();
+  auto func = std::make_shared<ArithmeticFloatingPointFunction>(name, Arity::Binary(),
+                                                                std::move(doc));
+  for (const auto& ty : {float32(), float64(), decimal128(1, 0), decimal256(1, 0)}) {
+    auto type_id = ty->id();
+    ArrayKernelExec exec = nullptr;
+    // auto exec = GenerateArithmeticFloatingPoint<ScalarBinaryEqualTypes, Op>(ty);
+    switch (type_id) {
+      case Type::FLOAT:
+        exec = RoundBinaryKernel<FloatType, OptionsType, Op>::Exec;
+        break;
+      case Type::DOUBLE:
+        exec = RoundBinaryKernel<DoubleType, OptionsType, Op>::Exec;
+        break;
+      case Type::DECIMAL128:
+        exec = RoundBinaryKernel<Decimal128Type, OptionsType, Op>::Exec;
+        break;
+      case Type::DECIMAL256:
+        exec = RoundBinaryKernel<Decimal256Type, OptionsType, Op>::Exec;
+        break;
+      default:
+        DCHECK(false);
+        break;
+    }
+    DCHECK_OK(func->AddKernel(
+        {ty, Type::INT32}, is_decimal(type_id) ? OutputType(FirstType) : OutputType(ty),
+        exec, State::Init));
   }
   AddNullExec(func.get());
   return func;
@@ -1948,6 +2126,13 @@ const FunctionDoc round_doc{
     {"x"},
     "RoundOptions"};
 
+const FunctionDoc round_binary_doc{
+    "Round to a given precision",
+    ("Options are used to control the rounding mode.\n"
+     "Default behavior is to use the half-to-even rule to break ties."),
+    {"x", "s"},
+    "RoundBinaryOptions"};
+
 const FunctionDoc round_to_multiple_doc{
     "Round to a given multiple",
     ("Options are used to control the rounding multiple and rounding mode.\n"
@@ -2406,6 +2591,10 @@ void RegisterScalarArithmetic(FunctionRegistry* registry) {
 
   auto round = MakeUnaryRoundFunction<Round, RoundOptions>("round", round_doc);
   DCHECK_OK(registry->AddFunction(std::move(round)));
+
+  auto round_binary = MakeBinaryRoundFunction<RoundBinary, RoundOptions>(
+      "round_binary", round_binary_doc);
+  DCHECK_OK(registry->AddFunction(std::move(round_binary)));
 
   auto round_to_multiple =
       MakeUnaryRoundFunction<RoundToMultiple, RoundToMultipleOptions>(
