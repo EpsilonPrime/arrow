@@ -844,21 +844,6 @@ ExtensionIdRegistry::SubstraitCallToArrow DecodeBinaryRoundingMode(
     std::shared_ptr<compute::RoundBinaryOptions> options =
         std::make_shared<compute::RoundBinaryOptions>();
     options->round_mode = round_mode;
-#if 0
-            std::vector<compute::Expression> value_args;
-            ARROW_ASSIGN_OR_RAISE(compute::Expression arg, call.GetValueArg(0));
-            value_args.push_back(arg);
-            if (function_name == "round_binary") {
-                ARROW_ASSIGN_OR_RAISE(compute::Expression s_arg, call.GetValueArg(1));
-                if (s_arg.literal() == NULLPTR) {
-                    return Status::NotImplemented(
-                            "Acero requires a literal value (not a column) for the significant digits parameter to ",
-                            function_name);
-                }
-                // MEGAHACK -- Throw s_arg into options->ndigits.
-            }
-            return arrow::compute::call("round", std::move(value_args), std::move(options));
-#endif
     return arrow::compute::call("round_binary", std::move(value_args),
                                 std::move(options));
   };

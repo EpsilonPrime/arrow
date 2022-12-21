@@ -1593,7 +1593,6 @@ struct RoundKernel {
         state.options.ToString());
   }
 };
-
 #undef ROUND_CASE
 
 #define ROUND_BINARY_CASE(MODE)                                                \
@@ -1629,7 +1628,6 @@ struct RoundBinaryKernel {
         state.options.ToString());
   }
 };
-
 #undef ROUND_BINARY_CASE
 
 // Like MakeUnaryArithmeticFunction, but for unary rounding functions that control

@@ -896,13 +896,13 @@ Result<Datum> Round(const Datum& arg, RoundOptions options = RoundOptions::Defau
 /// If argument is null the result will be null.
 ///
 /// \param[in] arg1 the value rounded
-/// \param[in] arg2 the value rounded MEGAHACK
+/// \param[in] arg2 the number of significant digits to round to
 /// \param[in] options rounding options (rounding mode and number of digits), optional
 /// \param[in] ctx the function execution context, optional
 /// \return the element-wise rounded value
 ARROW_EXPORT
 Result<Datum> RoundBinary(const Datum& arg1, const Datum& arg2,
-                          RoundOptions options = RoundOptions::Defaults(),
+                          RoundBinaryOptions options = RoundBinaryOptions::Defaults(),
                           ExecContext* ctx = NULLPTR);
 
 /// \brief Round a value to a given multiple.

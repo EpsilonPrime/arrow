@@ -1691,8 +1691,6 @@ TEST_F(TestUnaryArithmeticDecimal, Negate) {
   }
 }
 
-// MEGAHACK -- Could we test here?
-
 // Check two modes exhaustively, give all modes a simple test
 TEST_F(TestUnaryArithmeticDecimal, Round) {
   const auto func = "round";

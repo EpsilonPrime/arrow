@@ -598,7 +598,7 @@ void CheckValidRoundTestCases(const std::vector<FunctionRoundTestCase>& valid_ca
 
 TEST(FunctionMapping, ValidRoundCases) {
   const std::initializer_list<FunctionRoundTestCase> valid_test_cases = {
-#if 0
+#if 1
           {{{kSubstraitRoundingFunctionsUri, "round"},
                    {"323.125"},
                    {
