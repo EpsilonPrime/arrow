@@ -825,28 +825,44 @@ ExtensionIdRegistry::SubstraitCallToArrow DecodeRoundingMode(
   };
 }
 
-    ExtensionIdRegistry::SubstraitCallToArrow DecodeBinaryRoundingMode(
-            const std::string& function_name) {
-        return [function_name](const SubstraitCall& call) -> Result<compute::Expression> {
-            ARROW_ASSIGN_OR_RAISE(
-                    compute::RoundMode round_mode,
-                    ParseOptionOrElse(
-                            call, "rounding", kRoundModeParser,
-                            {compute::RoundMode::DOWN, compute::RoundMode::UP,
-                             compute::RoundMode::TOWARDS_ZERO, compute::RoundMode::TOWARDS_INFINITY,
-                             compute::RoundMode::HALF_DOWN, compute::RoundMode::HALF_UP,
-                             compute::RoundMode::HALF_TOWARDS_ZERO,
-                             compute::RoundMode::HALF_TOWARDS_INFINITY, compute::RoundMode::HALF_TO_EVEN,
-                             compute::RoundMode::HALF_TO_ODD},
-                            compute::RoundMode::HALF_TOWARDS_INFINITY));
-            ARROW_ASSIGN_OR_RAISE(std::vector<compute::Expression> value_args,
-                                  GetValueArgs(call, 0));
-            std::shared_ptr<compute::RoundBinaryOptions> options =
-                    std::make_shared<compute::RoundBinaryOptions>();
-            options->round_mode = round_mode;
-            return arrow::compute::call(function_name, std::move(value_args), std::move(options));
-        };
-    }
+ExtensionIdRegistry::SubstraitCallToArrow DecodeBinaryRoundingMode(
+    const std::string& function_name) {
+  return [function_name](const SubstraitCall& call) -> Result<compute::Expression> {
+    ARROW_ASSIGN_OR_RAISE(
+        compute::RoundMode round_mode,
+        ParseOptionOrElse(
+            call, "rounding", kRoundModeParser,
+            {compute::RoundMode::DOWN, compute::RoundMode::UP,
+             compute::RoundMode::TOWARDS_ZERO, compute::RoundMode::TOWARDS_INFINITY,
+             compute::RoundMode::HALF_DOWN, compute::RoundMode::HALF_UP,
+             compute::RoundMode::HALF_TOWARDS_ZERO,
+             compute::RoundMode::HALF_TOWARDS_INFINITY, compute::RoundMode::HALF_TO_EVEN,
+             compute::RoundMode::HALF_TO_ODD},
+            compute::RoundMode::HALF_TOWARDS_INFINITY));
+    ARROW_ASSIGN_OR_RAISE(std::vector<compute::Expression> value_args,
+                          GetValueArgs(call, 0));
+    std::shared_ptr<compute::RoundBinaryOptions> options =
+        std::make_shared<compute::RoundBinaryOptions>();
+    options->round_mode = round_mode;
+#if 0
+            std::vector<compute::Expression> value_args;
+            ARROW_ASSIGN_OR_RAISE(compute::Expression arg, call.GetValueArg(0));
+            value_args.push_back(arg);
+            if (function_name == "round_binary") {
+                ARROW_ASSIGN_OR_RAISE(compute::Expression s_arg, call.GetValueArg(1));
+                if (s_arg.literal() == NULLPTR) {
+                    return Status::NotImplemented(
+                            "Acero requires a literal value (not a column) for the significant digits parameter to ",
+                            function_name);
+                }
+                // MEGAHACK -- Throw s_arg into options->ndigits.
+            }
+            return arrow::compute::call("round", std::move(value_args), std::move(options));
+#endif
+    return arrow::compute::call("round_binary", std::move(value_args),
+                                std::move(options));
+  };
+}
 
 template <bool kChecked>
 ExtensionIdRegistry::ArrowToSubstraitCall EncodeOptionlessOverflowableArithmetic(
@@ -1018,8 +1034,8 @@ struct DefaultExtensionIdRegistry : ExtensionIdRegistryImpl {
     }
     DCHECK_OK(AddSubstraitCallToArrow({kSubstraitRoundingFunctionsUri, "round"},
                                       DecodeRoundingMode("round")));
-  DCHECK_OK(AddSubstraitCallToArrow({kSubstraitRoundingFunctionsUri, "round_binary"},
-                                    DecodeBinaryRoundingMode("round_binary")));
+    DCHECK_OK(AddSubstraitCallToArrow({kSubstraitRoundingFunctionsUri, "round_binary"},
+                                      DecodeBinaryRoundingMode("round_binary")));
 
     // Basic mappings that need _kleene appended to them
     for (const auto& function_name : {"or", "and"}) {

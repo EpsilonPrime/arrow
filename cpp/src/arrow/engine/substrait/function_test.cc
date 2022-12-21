@@ -76,12 +76,21 @@ Result<std::shared_ptr<Array>> GetArray(const std::string& value,
 
 Result<std::shared_ptr<Table>> GetInputTable(
     const std::vector<std::string>& arguments,
+    const std::vector<std::string>& literal_arguments,
     const std::vector<std::shared_ptr<DataType>>& data_types) {
   std::vector<std::shared_ptr<Array>> columns;
   std::vector<std::shared_ptr<Field>> fields;
-  EXPECT_EQ(arguments.size(), data_types.size());
+  EXPECT_EQ(arguments.size() + literal_arguments.size(), data_types.size());
   for (std::size_t i = 0; i < arguments.size(); i++) {
     if (data_types[i]) {
+      ARROW_ASSIGN_OR_RAISE(std::shared_ptr<Array> arg_array,
+                            GetArray(arguments[i], data_types[i]));
+      columns.push_back(std::move(arg_array));
+      fields.push_back(field("arg_" + std::to_string(i), data_types[i]));
+    }
+  }
+  for (std::size_t i = 0; i < literal_arguments.size(); i++) {
+    if (data_types[arguments.size() + i]) {
       ARROW_ASSIGN_OR_RAISE(std::shared_ptr<Array> arg_array,
                             GetArray(arguments[i], data_types[i]));
       columns.push_back(std::move(arg_array));
@@ -109,7 +118,7 @@ Result<std::shared_ptr<Table>> GetOutputTable(
 Result<std::shared_ptr<compute::ExecPlan>> PlanFromTestCase(
     const FunctionTestCase& test_case, std::shared_ptr<Table>* output_table) {
   ARROW_ASSIGN_OR_RAISE(std::shared_ptr<Table> input_table,
-                        GetInputTable(test_case.arguments, test_case.data_types));
+                        GetInputTable(test_case.arguments, {}, test_case.data_types));
   ARROW_ASSIGN_OR_RAISE(
       std::shared_ptr<Buffer> substrait,
       internal::CreateScanProjectSubstrait(
@@ -537,11 +546,42 @@ TEST(FunctionMapping, UnrecognizedOptions) {
           "only supported options are [SILENT, ERROR]"));
 }
 
+Result<std::shared_ptr<compute::ExecPlan>> PlanFromRoundTestCase(
+    const FunctionRoundTestCase& test_case, std::shared_ptr<Table>* output_table) {
+  ARROW_ASSIGN_OR_RAISE(std::shared_ptr<Table> input_table,
+                        GetInputTable(test_case.arguments, test_case.literal_arguments,
+                                      test_case.data_types));
+  ARROW_ASSIGN_OR_RAISE(
+      std::shared_ptr<Buffer> substrait,
+      internal::CreateScanProjectSubstrait(
+          test_case.function_id, input_table, test_case.arguments, test_case.options,
+          test_case.data_types, *test_case.expected_output_type));
+  std::shared_ptr<compute::SinkNodeConsumer> consumer =
+      std::make_shared<compute::TableSinkNodeConsumer>(output_table,
+                                                       default_memory_pool());
+
+  // Mock table provider that ignores the table name and returns input_table
+  NamedTableProvider table_provider = [input_table](const std::vector<std::string>&) {
+    std::shared_ptr<compute::ExecNodeOptions> options =
+        std::make_shared<compute::TableSourceNodeOptions>(input_table);
+    return compute::Declaration("table_source", {}, options, "mock_source");
+  };
+
+  ConversionOptions conversion_options;
+  conversion_options.named_table_provider = std::move(table_provider);
+
+  ARROW_ASSIGN_OR_RAISE(
+      std::shared_ptr<compute::ExecPlan> plan,
+      DeserializePlan(*substrait, std::move(consumer), default_extension_id_registry(),
+                      /*ext_set_out=*/nullptr, conversion_options));
+  return plan;
+}
+
 void CheckValidRoundTestCases(const std::vector<FunctionRoundTestCase>& valid_cases) {
   for (const FunctionRoundTestCase& test_case : valid_cases) {
     std::shared_ptr<Table> output_table;
     ASSERT_OK_AND_ASSIGN(std::shared_ptr<compute::ExecPlan> plan,
-                         PlanFromTestCase(test_case, &output_table));
+                         PlanFromRoundTestCase(test_case, &output_table));
     ASSERT_OK(plan->StartProducing());
     ASSERT_FINISHES_OK(plan->finished());
 
@@ -587,34 +627,35 @@ TEST(FunctionMapping, ValidRoundCases) {
                    float64()},
                   {"2"}},
 #endif
-          {{{kSubstraitRoundingFunctionsUri, "round_binary"},
-        {"323.125", "2"},
-        {
-            {"rounding", {"TIE_AWAY_FROM_ZERO"}},
-            {"testname", {"rba1"}},
-        },
-        {float32(), int32()},
-        "323.13",
-        float32()},
-              {"2"}},
-      {{{kSubstraitRoundingFunctionsUri, "round_binary"},
-        {"323.125", "-2"},
-        {
-            {"rounding", {"TIE_AWAY_FROM_ZERO"}},
-        },
-        {float64(), int32()},
-        "300",
-        float64()},
-              {"-2"}},
-      {{{kSubstraitRoundingFunctionsUri, "round_binary"},
-        {"323.135", "2"},
-        {
-            {"rounding", {"TIE_TO_EVEN"}},
-        },
-        {float64(), int32()},
-        "323.14",
-        float64()},
-              {"2"}}};
+    {{{kSubstraitRoundingFunctionsUri, "round_binary"},
+      {"323.125", "2"},
+      {
+          {"rounding", {"TIE_AWAY_FROM_ZERO"}},
+          {"testname", {"rba1"}},
+      },
+      {float32(), int32()},
+      "323.13",
+      float32()},
+     {}},
+    {{{kSubstraitRoundingFunctionsUri, "round_binary"},
+      {"323.125", "-2"},
+      {
+          {"rounding", {"TIE_AWAY_FROM_ZERO"}},
+      },
+      {float64(), int32()},
+      "300",
+      float64()},
+     {}},
+    {{{kSubstraitRoundingFunctionsUri, "round_binary"},
+      {"323.135", "2"},
+      {
+          {"rounding", {"TIE_TO_EVEN"}},
+      },
+      {float64(), int32()},
+      "323.14",
+      float64()},
+     {}}
+  };
   CheckValidRoundTestCases(valid_test_cases);
 }
 
