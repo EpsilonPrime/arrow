@@ -667,15 +667,9 @@ template <>
 struct RoundOptionsWrapper<RoundBinaryOptions>
     : public OptionsWrapper<RoundBinaryOptions> {
   using OptionsType = RoundBinaryOptions;
-  double pow10;
 
-  explicit RoundOptionsWrapper(OptionsType options) : OptionsWrapper(std::move(options)) {
-    // Only positive exponents for powers of 10 are used because combining
-    // multiply and division operations produced more stable rounding than
-    // using multiply-only.  Refer to NumPy's round implementation:
-    // https://github.com/numpy/numpy/blob/7b2f20b406d27364c812f7a81a9c901afbd3600c/numpy/core/src/multiarray/calculation.c#L589
-    pow10 = RoundUtil::Pow10(std::abs(options.ndigits));
-  }
+  explicit RoundOptionsWrapper(OptionsType options)
+      : OptionsWrapper(std::move(options)) {}
 
   static Result<std::unique_ptr<KernelState>> Init(KernelContext* ctx,
                                                    const KernelInitArgs& args) {
@@ -864,6 +858,10 @@ struct RoundBinary {
       return arg0;
     }
 
+    // Only positive exponents for powers of 10 are used because combining
+    // multiply and division operations produced more stable rounding than
+    // using multiply-only.  Refer to NumPy's round implementation:
+    // https://github.com/numpy/numpy/blob/7b2f20b406d27364c812f7a81a9c901afbd3600c/numpy/core/src/multiarray/calculation.c#L589
     CType0 pow10 = RoundUtil::Pow10(std::abs(arg1));
 
     auto round_val = arg1 >= 0 ? (arg0 * pow10) : (arg0 / pow10);
