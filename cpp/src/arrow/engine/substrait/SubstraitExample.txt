@@ -1,0 +1,50 @@
+// Intended to be equivalent to velox/substrait/tests/data/q6_first_stage.json
+
+extension_space boolean.yaml {
+   function lte:fp64_fp64 as lte;
+   function sum:opt_fp64 as sum;
+   function lt:fp64_fp64 as lt;
+   function is_not_null:fp64 as is_not_null;
+   function and:bool_bool as and;
+   function gte:fp64_fp64 as gte;
+   function multiply:opt_fp64_fp64 as multiply;
+}
+
+schema one {
+   l_quantity null fp64;
+   l_extendedprice null fp64;
+   l_discount null fp64;
+   l_shipdate_new null fp64;
+
+   result null fp64;
+}
+
+relation read {
+   common ;
+   base_schema ;
+   filter ;
+   projection ;
+   advanced_extension ;
+
+   filter {
+      and(lt, gte)
+      is_not_null
+   }
+
+   local_files {
+      //items = [
+      //   { length: 3719  uri_file: "/mock_lineitem.orc" },
+      //]
+   }
+}
+
+relation filter {
+}
+
+relation project {
+}
+
+relation aggregate {
+}
+
+read -> filter -> project -> aggregate ;
