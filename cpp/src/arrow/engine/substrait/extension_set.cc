@@ -24,6 +24,7 @@
 #include <sstream>
 #include <unordered_set>
 
+#include "arrow/compute/api_scalar.h"
 #include "arrow/engine/substrait/options.h"
 #include "arrow/type.h"
 #include "arrow/type_fwd.h"

@@ -25,9 +25,7 @@
 #include "arrow/compare.h"
 #include "arrow/compute/api_scalar.h"
 #include "arrow/compute/cast.h"
-#include "arrow/compute/kernels/base_arithmetic_internal.h"
 #include "arrow/compute/kernels/common.h"
-#include "arrow/compute/kernels/util_internal.h"
 #include "arrow/type.h"
 #include "arrow/type_traits.h"
 #include "arrow/util/decimal.h"
@@ -281,6 +279,24 @@ struct RoundOptionsWrapper<RoundOptions> : public OptionsWrapper<RoundOptions> {
     // https://github.com/numpy/numpy/blob/7b2f20b406d27364c812f7a81a9c901afbd3600c/numpy/core/src/multiarray/calculation.c#L589
     pow10 = RoundUtil::Pow10(std::abs(options.ndigits));
   }
+
+  static Result<std::unique_ptr<KernelState>> Init(KernelContext* ctx,
+                                                   const KernelInitArgs& args) {
+    if (auto options = static_cast<const OptionsType*>(args.options)) {
+      return std::make_unique<RoundOptionsWrapper>(*options);
+    }
+    return Status::Invalid(
+        "Attempted to initialize KernelState from null FunctionOptions");
+  }
+};
+
+template <>
+struct RoundOptionsWrapper<RoundBinaryOptions>
+    : public OptionsWrapper<RoundBinaryOptions> {
+  using OptionsType = RoundBinaryOptions;
+
+  explicit RoundOptionsWrapper(OptionsType options)
+      : OptionsWrapper(std::move(options)) {}
 
   static Result<std::unique_ptr<KernelState>> Init(KernelContext* ctx,
                                                    const KernelInitArgs& args) {
