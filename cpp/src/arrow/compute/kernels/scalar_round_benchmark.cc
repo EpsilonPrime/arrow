@@ -66,29 +66,19 @@ static void RoundBinaryArrayBenchmark(benchmark::State& state,
   auto val = std::static_pointer_cast<NumericArray<ArrowType>>(
       rand.Numeric<ArrowType>(array_size, min, max, args.null_proportion));
 
-  auto minNDigits = static_cast<int32_t>(-6);
-  auto maxNDigits = static_cast<int32_t>(6);
-  auto valNDigits = std::static_pointer_cast<NumericArray<Int32Type>>(
-      rand.Numeric<Int32Type>(array_size, minNDigits, maxNDigits, args.null_proportion));
+  auto val_ndigits =
+         rand.Int32(array_size, -6, 6, args.null_proportion);
 
   RoundBinaryOptions options;
   options.round_mode = static_cast<RoundMode>(Mode);
 
   for (auto _ : state) {
-    ABORT_NOT_OK(CallFunction(func_name, {val, valNDigits}, &options));
+    ABORT_NOT_OK(CallFunction(func_name, {val, val_ndigits}, &options));
   }
   state.SetItemsProcessed(state.iterations() * array_size);
 }
 
 void SetRoundArgs(benchmark::internal::Benchmark* bench) {
-  bench->ArgNames({"size", "inverse_null_proportion"});
-
-  for (const auto inverse_null_proportion : std::vector<ArgsType>({100, 0})) {
-    bench->Args({static_cast<ArgsType>(kL2Size), inverse_null_proportion});
-  }
-}
-
-void SetRoundBinaryArgs(benchmark::internal::Benchmark* bench) {
   bench->ArgNames({"size", "inverse_null_proportion"});
 
   for (const auto inverse_null_proportion : std::vector<ArgsType>({100, 0})) {
@@ -134,30 +124,30 @@ static void RoundBinary(benchmark::State& state) {
   BENCHMARK_TEMPLATE(OP, TYPE, RoundMode::HALF_TO_EVEN)->Apply(SETARGS);          \
   BENCHMARK_TEMPLATE(OP, TYPE, RoundMode::HALF_TO_ODD)->Apply(SETARGS)
 #else
-#define DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, TYPE, SETARGS)            \
-  BENCHMARK_TEMPLATE(OP, TYPE, RoundMode::DOWN)->Apply(SETARGS);              \
-  BENCHMARK_TEMPLATE(OP, TYPE, RoundMode::HALF_TOWARDS_ZERO)->Apply(SETARGS); \
-  BENCHMARK_TEMPLATE(OP, TYPE, RoundMode::HALF_TO_ODD)->Apply(SETARGS)
+#define DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, TYPE)                          \
+  BENCHMARK_TEMPLATE(OP, TYPE, RoundMode::DOWN)->Apply(SetRoundArgs);              \
+  BENCHMARK_TEMPLATE(OP, TYPE, RoundMode::HALF_TOWARDS_ZERO)->Apply(SetRoundArgs); \
+  BENCHMARK_TEMPLATE(OP, TYPE, RoundMode::HALF_TO_ODD)->Apply(SetRoundArgs)
 #endif
 
-#define DECLARE_ROUND_BENCHMARKS(OP, SETARGS)                       \
-  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, Int64Type, SETARGS);  \
-  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, Int32Type, SETARGS);  \
-  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, Int16Type, SETARGS);  \
-  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, Int8Type, SETARGS);   \
-  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, UInt64Type, SETARGS); \
-  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, UInt32Type, SETARGS); \
-  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, UInt16Type, SETARGS); \
-  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, UInt8Type, SETARGS);  \
-  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, FloatType, SETARGS);  \
-  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, DoubleType, SETARGS);
+#define DECLARE_ROUND_BENCHMARKS(OP)                       \
+  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, Int64Type);  \
+  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, Int32Type);  \
+  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, Int16Type);  \
+  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, Int8Type);   \
+  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, UInt64Type); \
+  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, UInt32Type); \
+  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, UInt16Type); \
+  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, UInt8Type);  \
+  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, FloatType);  \
+  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(OP, DoubleType);
 
-DECLARE_ROUND_BENCHMARKS(Ceil, SetRoundArgs);
-DECLARE_ROUND_BENCHMARKS(Floor, SetRoundArgs);
-DECLARE_ROUND_BENCHMARKS(Round, SetRoundArgs);
-DECLARE_ROUND_BENCHMARKS(Trunc, SetRoundArgs);
+DECLARE_ROUND_BENCHMARKS(Ceil);
+DECLARE_ROUND_BENCHMARKS(Floor);
+DECLARE_ROUND_BENCHMARKS(Round);
+DECLARE_ROUND_BENCHMARKS(Trunc);
 
-DECLARE_ROUND_BENCHMARKS(RoundBinary, SetRoundBinaryArgs);
+DECLARE_ROUND_BENCHMARKS(RoundBinary);
 
 }  // namespace compute
 }  // namespace arrow
