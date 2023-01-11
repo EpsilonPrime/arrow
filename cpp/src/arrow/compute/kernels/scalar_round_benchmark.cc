@@ -32,8 +32,28 @@ namespace {
 // Use a fixed hash to ensure consistent results from run to run.
 constexpr auto kSeed = 0x94378165;
 
+using NoOptionUnaryOp = Result<Datum>(const Datum&, ExecContext*);
 using UnaryOp = Result<Datum>(const Datum&, RoundOptions, ExecContext*);
 using BinaryOp = Result<Datum>(const Datum&, const Datum&, RoundBinaryOptions, ExecContext*);
+
+template <NoOptionUnaryOp& Op, typename ArrowType, typename CType = typename ArrowType::c_type>
+static void RoundDerivativesArrayBenchmark(benchmark::State& state) {
+    RegressionArgs args(state);
+
+    const int64_t array_size = args.size / sizeof(CType);
+    auto rand = random::RandomArrayGenerator(kSeed);
+
+    // Choose values so as to avoid overflow on all ops and types.
+    auto min = static_cast<CType>(6);
+    auto max = static_cast<CType>(min + 15);
+    auto val = std::static_pointer_cast<NumericArray<ArrowType>>(
+            rand.Numeric<ArrowType>(array_size, min, max, args.null_proportion));
+
+    for (auto _ : state) {
+        ABORT_NOT_OK(Op(val, NULLPTR));
+    }
+    state.SetItemsProcessed(state.iterations() * array_size);
+}
 
 template <UnaryOp& Op, typename ArrowType, RoundMode Mode, typename CType = typename ArrowType::c_type>
 static void RoundArrayBenchmark(benchmark::State& state) {
@@ -90,37 +110,17 @@ void SetRoundArgs(benchmark::internal::Benchmark* bench) {
   }
 }
 
-/*
-template <typename ArrowType, RoundMode Mode>
-static void Ceil(benchmark::State& state) {
-  RoundArrayBenchmark<ArrowType, Mode>(state, "ceil");
-}
-
-template <typename ArrowType, RoundMode Mode>
-static void Floor(benchmark::State& state) {
-  RoundArrayBenchmark<ArrowType, Mode>(state, "floor");
-}
-
-template <typename ArrowType, RoundMode Mode>
-static void Round(benchmark::State& state) {
-  RoundArrayBenchmark<ArrowType, Mode>(state, "round");
-}
-
-template <typename ArrowType, RoundMode Mode>
-static void Trunc(benchmark::State& state) {
-  RoundArrayBenchmark<ArrowType, Mode>(state, "trunc");
-}
-
-template <typename ArrowType, RoundMode Mode>
-static void RoundBinary(benchmark::State& state) {
-  RoundBinaryArrayBenchmark<ArrowType, Mode>(state, "round_binary");
-}
-
-static Result<Datum> RoundBinary(const Datum &left, const Datum& right,
-RoundBinaryOptions options = RoundBinaryOptions(), ExecContext* ctx = NULLPTR) {
-    return RoundBinary(left, right, std::move(options), ctx);
-}
-*/
+#define DECLARE_BASIC_BENCHMARKS(BENCHMARK, OP)                       \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, Int64Type)->Apply(SetRoundArgs);  \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, Int32Type)->Apply(SetRoundArgs);  \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, Int16Type)->Apply(SetRoundArgs);  \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, Int8Type)->Apply(SetRoundArgs);  \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, UInt64Type)->Apply(SetRoundArgs);  \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, UInt32Type)->Apply(SetRoundArgs);  \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, UInt16Type)->Apply(SetRoundArgs);  \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, UInt8Type)->Apply(SetRoundArgs);  \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, FloatType)->Apply(SetRoundArgs);  \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, DoubleType)->Apply(SetRoundArgs);
 
 #ifdef ALL_ROUND_BENCHMARKS
 #define DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(BENCHMARK, OP, TYPE)                \
@@ -153,13 +153,11 @@ RoundBinaryOptions options = RoundBinaryOptions(), ExecContext* ctx = NULLPTR) {
   DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(BENCHMARK, OP, FloatType);  \
   DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(BENCHMARK, OP, DoubleType);
 
-DECLARE_ROUND_BENCHMARKS(RoundArrayBenchmark, Ceil);
-#if 0
-DECLARE_ROUND_BENCHMARKS(RoundArrayBenchmark, Floor);
-DECLARE_ROUND_BENCHMARKS(RoundArrayBenchmark, Round);
-DECLARE_ROUND_BENCHMARKS(RoundArrayBenchmark, Trunc);
-#endif
+DECLARE_BASIC_BENCHMARKS(RoundDerivativesArrayBenchmark, Ceil);
+DECLARE_BASIC_BENCHMARKS(RoundDerivativesArrayBenchmark, Floor);
+DECLARE_BASIC_BENCHMARKS(RoundDerivativesArrayBenchmark, Trunc);
 
+DECLARE_ROUND_BENCHMARKS(RoundArrayBenchmark, Round);
 DECLARE_ROUND_BENCHMARKS(RoundBinaryArrayBenchmark, RoundBinary);
 
 }  // namespace
