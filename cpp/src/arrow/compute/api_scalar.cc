@@ -703,7 +703,6 @@ Result<Datum> Round(const Datum& arg, RoundOptions options, ExecContext* ctx) {
 
 Result<Datum> RoundBinary(const Datum& arg1, const Datum& arg2,
                           RoundBinaryOptions options, ExecContext* ctx) {
-  // MEGAHACK -- Calling Round here might actually work.
   return CallFunction("round_binary", {arg1, arg2}, &options, ctx);
 }
 

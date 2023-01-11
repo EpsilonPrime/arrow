@@ -796,34 +796,6 @@ ExtensionIdRegistry::SubstraitCallToArrow DecodeOptionlessUncheckedArithmetic(
   };
 }
 
-ExtensionIdRegistry::SubstraitCallToArrow DecodeRoundingMode(
-    const std::string& function_name) {
-  return [function_name](const SubstraitCall& call) -> Result<compute::Expression> {
-    ARROW_ASSIGN_OR_RAISE(
-        compute::RoundMode round_mode,
-        ParseOptionOrElse(
-            call, "rounding", kRoundModeParser,
-            {compute::RoundMode::DOWN, compute::RoundMode::UP,
-             compute::RoundMode::TOWARDS_ZERO, compute::RoundMode::TOWARDS_INFINITY,
-             compute::RoundMode::HALF_DOWN, compute::RoundMode::HALF_UP,
-             compute::RoundMode::HALF_TOWARDS_ZERO,
-             compute::RoundMode::HALF_TOWARDS_INFINITY, compute::RoundMode::HALF_TO_EVEN,
-             compute::RoundMode::HALF_TO_ODD},
-            compute::RoundMode::HALF_TOWARDS_INFINITY));
-    ARROW_ASSIGN_OR_RAISE(std::vector<compute::Expression> value_args,
-                          GetValueArgs(call, 0));
-    std::shared_ptr<compute::RoundOptions> options =
-        std::make_shared<compute::RoundOptions>();
-    std::optional<std::vector<std::string> const*> s_arg = call.GetOption("s");
-    if (s_arg.has_value()) {
-      // Substrait will enforce at least one choice is present so this is safe.
-      options->ndigits = std::stol(s_arg.value()->at(0), NULLPTR, 10);
-    }
-    options->round_mode = round_mode;
-    return arrow::compute::call(function_name, std::move(value_args), std::move(options));
-  };
-}
-
 ExtensionIdRegistry::SubstraitCallToArrow DecodeBinaryRoundingMode(
     const std::string& function_name) {
   return [function_name](const SubstraitCall& call) -> Result<compute::Expression> {
@@ -1016,9 +988,8 @@ struct DefaultExtensionIdRegistry : ExtensionIdRegistryImpl {
           AddSubstraitCallToArrow({kSubstraitRoundingFunctionsUri, function_name},
                                   DecodeOptionlessUncheckedArithmetic(function_name)));
     }
+    // Expose only the binary version of round
     DCHECK_OK(AddSubstraitCallToArrow({kSubstraitRoundingFunctionsUri, "round"},
-                                      DecodeRoundingMode("round")));
-    DCHECK_OK(AddSubstraitCallToArrow({kSubstraitRoundingFunctionsUri, "round_binary"},
                                       DecodeBinaryRoundingMode("round_binary")));
 
     // Basic mappings that need _kleene appended to them

@@ -1401,7 +1401,7 @@ const FunctionDoc round_doc{
     "RoundOptions"};
 
 const FunctionDoc round_binary_doc{
-    "Round to a given precision",
+    "Round to the given precision",
     ("Options are used to control the rounding mode.\n"
      "Default behavior is to use the half-to-even rule to break ties."),
     {"x", "s"},
