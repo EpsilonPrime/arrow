@@ -1233,7 +1233,6 @@ std::shared_ptr<ScalarFunction> MakeBinaryRoundFunction(const std::string& name,
   for (const auto& ty : {float32(), float64(), decimal128(1, 0), decimal256(1, 0)}) {
     auto type_id = ty->id();
     ArrayKernelExec exec = nullptr;
-    // auto exec = GenerateArithmeticFloatingPoint<ScalarBinaryEqualTypes, Op>(ty);
     switch (type_id) {
       case Type::FLOAT:
         exec = RoundBinaryKernel<FloatType, OptionsType, Op>::Exec;
