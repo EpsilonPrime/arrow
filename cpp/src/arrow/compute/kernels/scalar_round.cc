@@ -1240,32 +1240,6 @@ std::shared_ptr<ScalarFunction> MakeBinaryRoundFunction(const std::string& name,
       case Type::DOUBLE:
         exec = RoundBinaryKernel<DoubleType, OptionsType, Op>::Exec;
         break;
-#if 0
-      case Type::INT8:
-        exec = RoundBinaryKernel<Int8Type, OptionsType, Op>::Exec;
-        break;
-      case Type::UINT8:
-        exec = RoundBinaryKernel<UInt8Type, OptionsType, Op>::Exec;
-        break;
-      case Type::INT16:
-        exec = RoundBinaryKernel<Int16Type, OptionsType, Op>::Exec;
-        break;
-      case Type::UINT16:
-        exec = RoundBinaryKernel<UInt16Type, OptionsType, Op>::Exec;
-        break;
-      case Type::INT32:
-        exec = RoundBinaryKernel<Int32Type, OptionsType, Op>::Exec;
-        break;
-      case Type::UINT32:
-        exec = RoundBinaryKernel<UInt32Type, OptionsType, Op>::Exec;
-        break;
-      case Type::INT64:
-        exec = RoundBinaryKernel<Int64Type, OptionsType, Op>::Exec;
-        break;
-      case Type::UINT64:
-        exec = RoundBinaryKernel<UInt64Type, OptionsType, Op>::Exec;
-        break;
-#endif
       case Type::DECIMAL128:
         exec = RoundBinaryKernel<Decimal128Type, OptionsType, Op>::Exec;
         break;
