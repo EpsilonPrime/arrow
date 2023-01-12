@@ -34,28 +34,31 @@ constexpr auto kSeed = 0x94378165;
 
 using NoOptionUnaryOp = Result<Datum>(const Datum&, ExecContext*);
 using UnaryOp = Result<Datum>(const Datum&, RoundOptions, ExecContext*);
-using BinaryOp = Result<Datum>(const Datum&, const Datum&, RoundBinaryOptions, ExecContext*);
+using BinaryOp = Result<Datum>(const Datum&, const Datum&, RoundBinaryOptions,
+                               ExecContext*);
 
-template <NoOptionUnaryOp& Op, typename ArrowType, typename CType = typename ArrowType::c_type>
+template <NoOptionUnaryOp& Op, typename ArrowType,
+          typename CType = typename ArrowType::c_type>
 static void RoundDerivativesArrayBenchmark(benchmark::State& state) {
-    RegressionArgs args(state);
+  RegressionArgs args(state);
 
-    const int64_t array_size = args.size / sizeof(CType);
-    auto rand = random::RandomArrayGenerator(kSeed);
+  const int64_t array_size = args.size / sizeof(CType);
+  auto rand = random::RandomArrayGenerator(kSeed);
 
-    // Choose values so as to avoid overflow on all ops and types.
-    auto min = static_cast<CType>(6);
-    auto max = static_cast<CType>(min + 15);
-    auto val = std::static_pointer_cast<NumericArray<ArrowType>>(
-            rand.Numeric<ArrowType>(array_size, min, max, args.null_proportion));
+  // Choose values so as to avoid overflow on all ops and types.
+  auto min = static_cast<CType>(6);
+  auto max = static_cast<CType>(min + 15);
+  auto val = std::static_pointer_cast<NumericArray<ArrowType>>(
+      rand.Numeric<ArrowType>(array_size, min, max, args.null_proportion));
 
-    for (auto _ : state) {
-        ABORT_NOT_OK(Op(val, NULLPTR));
-    }
-    state.SetItemsProcessed(state.iterations() * array_size);
+  for (auto _ : state) {
+    ABORT_NOT_OK(Op(val, NULLPTR));
+  }
+  state.SetItemsProcessed(state.iterations() * array_size);
 }
 
-template <UnaryOp& Op, typename ArrowType, RoundMode Mode, typename CType = typename ArrowType::c_type>
+template <UnaryOp& Op, typename ArrowType, RoundMode Mode,
+          typename CType = typename ArrowType::c_type>
 static void RoundArrayBenchmark(benchmark::State& state) {
   RegressionArgs args(state);
 
@@ -77,7 +80,8 @@ static void RoundArrayBenchmark(benchmark::State& state) {
   state.SetItemsProcessed(state.iterations() * array_size);
 }
 
-template <BinaryOp& Op, typename ArrowType, RoundMode Mode, typename CType = typename ArrowType::c_type>
+template <BinaryOp& Op, typename ArrowType, RoundMode Mode,
+          typename CType = typename ArrowType::c_type>
 static void RoundBinaryArrayBenchmark(benchmark::State& state) {
   RegressionArgs args(state);
 
@@ -90,8 +94,7 @@ static void RoundBinaryArrayBenchmark(benchmark::State& state) {
   auto val = std::static_pointer_cast<NumericArray<ArrowType>>(
       rand.Numeric<ArrowType>(array_size, min, max, args.null_proportion));
 
-  auto val_ndigits =
-         rand.Int32(array_size, -6, 6, args.null_proportion);
+  auto val_ndigits = rand.Int32(array_size, -6, 6, args.null_proportion);
 
   RoundBinaryOptions options;
   options.round_mode = static_cast<RoundMode>(Mode);
@@ -114,30 +117,34 @@ void SetRoundArgs(benchmark::internal::Benchmark* bench) {
   BENCHMARK_TEMPLATE(BENCHMARK, OP, Int64Type)->Apply(SetRoundArgs);  \
   BENCHMARK_TEMPLATE(BENCHMARK, OP, Int32Type)->Apply(SetRoundArgs);  \
   BENCHMARK_TEMPLATE(BENCHMARK, OP, Int16Type)->Apply(SetRoundArgs);  \
-  BENCHMARK_TEMPLATE(BENCHMARK, OP, Int8Type)->Apply(SetRoundArgs);  \
-  BENCHMARK_TEMPLATE(BENCHMARK, OP, UInt64Type)->Apply(SetRoundArgs);  \
-  BENCHMARK_TEMPLATE(BENCHMARK, OP, UInt32Type)->Apply(SetRoundArgs);  \
-  BENCHMARK_TEMPLATE(BENCHMARK, OP, UInt16Type)->Apply(SetRoundArgs);  \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, Int8Type)->Apply(SetRoundArgs);   \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, UInt64Type)->Apply(SetRoundArgs); \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, UInt32Type)->Apply(SetRoundArgs); \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, UInt16Type)->Apply(SetRoundArgs); \
   BENCHMARK_TEMPLATE(BENCHMARK, OP, UInt8Type)->Apply(SetRoundArgs);  \
   BENCHMARK_TEMPLATE(BENCHMARK, OP, FloatType)->Apply(SetRoundArgs);  \
   BENCHMARK_TEMPLATE(BENCHMARK, OP, DoubleType)->Apply(SetRoundArgs);
 
 #ifdef ALL_ROUND_BENCHMARKS
-#define DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(BENCHMARK, OP, TYPE)                \
-  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::DOWN)->Apply(SetRoundArgs);                  \
-  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::UP)->Apply(SetRoundArgs);                    \
-  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::TOWARDS_ZERO)->Apply(SetRoundArgs);          \
-  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::TOWARDS_INFINITY)->Apply(SetRoundArgs);      \
-  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::HALF_DOWN)->Apply(SetRoundArgs);             \
-  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::HALF_UP)->Apply(SetRoundArgs);               \
-  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::HALF_TOWARDS_ZERO)->Apply(SetRoundArgs);     \
-  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::HALF_TOWARDS_INFINITY)->Apply(SetRoundArgs); \
-  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::HALF_TO_EVEN)->Apply(SetRoundArgs);          \
+#define DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(BENCHMARK, OP, TYPE)                     \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::DOWN)->Apply(SetRoundArgs);         \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::UP)->Apply(SetRoundArgs);           \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::TOWARDS_ZERO)->Apply(SetRoundArgs); \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::TOWARDS_INFINITY)                   \
+      ->Apply(SetRoundArgs);                                                             \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::HALF_DOWN)->Apply(SetRoundArgs);    \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::HALF_UP)->Apply(SetRoundArgs);      \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::HALF_TOWARDS_ZERO)                  \
+      ->Apply(SetRoundArgs);                                                             \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::HALF_TOWARDS_INFINITY)              \
+      ->Apply(SetRoundArgs);                                                             \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::HALF_TO_EVEN)->Apply(SetRoundArgs); \
   BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::HALF_TO_ODD)->Apply(SetRoundArgs)
 #else
-#define DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(BENCHMARK, OP, TYPE)                          \
-  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::DOWN)->Apply(SetRoundArgs);              \
-  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::HALF_TOWARDS_ZERO)->Apply(SetRoundArgs); \
+#define DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(BENCHMARK, OP, TYPE)             \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::DOWN)->Apply(SetRoundArgs); \
+  BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::HALF_TOWARDS_ZERO)          \
+      ->Apply(SetRoundArgs);                                                     \
   BENCHMARK_TEMPLATE(BENCHMARK, OP, TYPE, RoundMode::HALF_TO_ODD)->Apply(SetRoundArgs)
 #endif
 
@@ -153,12 +160,16 @@ void SetRoundArgs(benchmark::internal::Benchmark* bench) {
   DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(BENCHMARK, OP, FloatType);  \
   DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(BENCHMARK, OP, DoubleType);
 
+#define DECLARE_FLOATING_POINT_ROUND_BENCHMARKS(BENCHMARK, OP)       \
+  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(BENCHMARK, OP, FloatType); \
+  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(BENCHMARK, OP, DoubleType);
+
 DECLARE_BASIC_BENCHMARKS(RoundDerivativesArrayBenchmark, Ceil);
 DECLARE_BASIC_BENCHMARKS(RoundDerivativesArrayBenchmark, Floor);
 DECLARE_BASIC_BENCHMARKS(RoundDerivativesArrayBenchmark, Trunc);
 
 DECLARE_ROUND_BENCHMARKS(RoundArrayBenchmark, Round);
-DECLARE_ROUND_BENCHMARKS(RoundBinaryArrayBenchmark, RoundBinary);
+DECLARE_FLOATING_POINT_ROUND_BENCHMARKS(RoundBinaryArrayBenchmark, RoundBinary);
 
 }  // namespace
 }  // namespace compute
