@@ -873,11 +873,6 @@ ExtensionIdRegistry::SubstraitCallToArrow DecodeTemporalExtractionMapping() {
   return [](const SubstraitCall& call) -> Result<compute::Expression> {
     ARROW_ASSIGN_OR_RAISE(TemporalComponent temporal_component,
                           ParseEnumArg(call, 0, kTemporalComponentParser));
-    if (temporal_component == TemporalComponent::kUnspecified) {
-      return Status::Invalid(
-          "The temporal component enum is a require option for the extract function "
-          "and is not specified");
-    }
     ARROW_ASSIGN_OR_RAISE(std::vector<compute::Expression> value_args,
                           GetValueArgs(call, 1));
     std::string func_name;
