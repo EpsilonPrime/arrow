@@ -160,16 +160,12 @@ void SetRoundArgs(benchmark::internal::Benchmark* bench) {
   DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(BENCHMARK, OP, FloatType);  \
   DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(BENCHMARK, OP, DoubleType);
 
-#define DECLARE_FLOATING_POINT_ROUND_BENCHMARKS(BENCHMARK, OP)       \
-  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(BENCHMARK, OP, FloatType); \
-  DECLARE_ROUND_BENCHMARKS_WITH_ROUNDMODE(BENCHMARK, OP, DoubleType);
-
 DECLARE_BASIC_BENCHMARKS(RoundDerivativesArrayBenchmark, Ceil);
 DECLARE_BASIC_BENCHMARKS(RoundDerivativesArrayBenchmark, Floor);
 DECLARE_BASIC_BENCHMARKS(RoundDerivativesArrayBenchmark, Trunc);
 
 DECLARE_ROUND_BENCHMARKS(RoundArrayBenchmark, Round);
-DECLARE_FLOATING_POINT_ROUND_BENCHMARKS(RoundBinaryArrayBenchmark, RoundBinary);
+DECLARE_ROUND_BENCHMARKS(RoundBinaryArrayBenchmark, RoundBinary);
 
 }  // namespace
 }  // namespace compute
