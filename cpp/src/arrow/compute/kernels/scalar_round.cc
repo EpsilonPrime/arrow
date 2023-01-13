@@ -489,7 +489,7 @@ struct RoundBinary {
     // multiply and division operations produced more stable rounding than
     // using multiply-only.  Refer to NumPy's round implementation:
     // https://github.com/numpy/numpy/blob/7b2f20b406d27364c812f7a81a9c901afbd3600c/numpy/core/src/multiarray/calculation.c#L589
-    CType0 pow10 = RoundUtil::Pow10(std::abs(arg1));
+    double pow10 = RoundUtil::Pow10(std::abs(arg1));
 
     auto round_val = arg1 >= 0 ? (arg0 * pow10) : (arg0 / pow10);
     auto frac = round_val - std::floor(round_val);
