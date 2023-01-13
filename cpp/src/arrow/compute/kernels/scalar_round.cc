@@ -511,7 +511,7 @@ struct RoundBinary {
       // If scaled value is an integer, then no rounding is needed.
       round_val = arg0;
     }
-    return round_val;
+    return static_cast<CType0>(round_val);
   }
 };
 
