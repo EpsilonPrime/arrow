@@ -21,20 +21,16 @@ schema one {
 
 relation read {
    common ;
-   base_schema ;
-   filter ;
+   base_schema one;
    projection ;
    advanced_extension ;
 
-   filter {
-      and(lt, gte)
-      is_not_null
-   }
+   filter AND(GTE(l_shipdate, 8766), LT(l_shipdate, 9131));
 
    local_files {
-      //items = [
-      //   { length: 3719  uri_file: "/mock_lineitem.orc" },
-      //]
+      items = [
+         { length: 3719  uri_file: "/mock_lineitem.orc" },
+      ]
    }
 }
 

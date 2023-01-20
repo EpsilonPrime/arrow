@@ -7,8 +7,8 @@ options {
     caseInsensitive = true;
 }
 
-EXTENSION_SPACE : 'EXTENSION_SPACE';
-FUNCTION : 'FUNCTION';
+EXTENSION_SPACE: 'EXTENSION_SPACE';
+FUNCTION: 'FUNCTION';
 AS: 'AS';
 SCHEMA: 'SCHEMA';
 RELATION: 'RELATION';
@@ -25,6 +25,15 @@ LOCAL_FILES: 'LOCAL_FILES';
 NAMED_TABLE: 'NAMED_TABLE';
 EXTENSION_TABLE: 'EXTENSION_TABLE';
 
+ITEMS: 'ITEMS';
+URI_FILE: 'URI_FILE';
+URI_PATH: 'URI_PATH';
+URI_PATH_GLOB: 'URI_PATH_GLOB';
+URI_FOLDER: 'URI_FOLDER';
+PARTITION_INDEX: 'PARTITION_INDEX';
+START: 'START';
+LENGTH: 'LENGTH';
+
 ARROW: '->';
 COLON: ':';
 SEMICOLON: ';';
@@ -32,6 +41,24 @@ LEFTBRACE: '{';
 RIGHTBRACE: '}';
 LEFTPAREN: '(';
 RIGHTPAREN: ')';
+fragment QUOTE: '"';
+COMMA: ',';
+PERIOD: '.';
+EQUAL: '=';
+LEFTBRACKET: '[';
+RIGHTBRACKET: ']';
+
+COLUMN_TYPE: 'fp64'
+|             'fp32'
+|             'int8'
+|             'int16'
+|             'int32'
+|             'int64'
+|             'uint8'
+|             'uint16'
+|             'uint32'
+|             'uint64'
+;
 
 IDENTIFIER:
     [A-Z][A-Z_0-9]*
@@ -41,6 +68,14 @@ URI:
     'http://sample'
     | 'boolean.yaml'
 ;
+
+NUMBER: [0-9]+ ( PERIOD [0-9]+ )?
+;
+
+STRING : '"' (ESC | ~["\\])* '"' ;
+fragment ESC : '\\' (["\\/bfnrt] | UNICODE) ;
+fragment UNICODE : 'u' HEX HEX HEX HEX ;
+fragment HEX : [0-9a-fA-F] ;
 
 SINGLE_LINE_COMMENT: '//' ~[\r\n]* (('\r'? '\n') | EOF) -> channel(HIDDEN);
 
