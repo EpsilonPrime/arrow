@@ -109,8 +109,8 @@ Status MinioTestServer::Start() {
   // (NOTE: using "auto" would return a native_environment that mutates
   //  the current environment)
   bp::environment env = boost::this_process::environment();
-  env["MINIO_ACCESS_KEY"] = kMinioAccessKey;
-  env["MINIO_SECRET_KEY"] = kMinioSecretKey;
+  env["MINIO_ROOT_USER"] = kMinioAccessKey;
+  env["MINIO_ROOT_PASSWORD"] = kMinioSecretKey;
   // Disable the embedded console (one less listening address to care about)
   env["MINIO_BROWSER"] = "off";
 

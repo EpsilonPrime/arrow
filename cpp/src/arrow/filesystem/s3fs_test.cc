@@ -1179,7 +1179,7 @@ TEST_F(TestS3FS, CopyFilesAvoidsDeadlock) {
 
   // Each copy usually takes less than a tenth of a second.
   auto asyncFuture = std::async(std::launch::async, [&] {
-      return CopyFiles(input_fs, inputFilesSelector, fs_, "bucketname/subdir", context);
+      return CopyFilesAsync(input_fs, inputFilesSelector, fs_, "bucketname/subdir", context).status();
   });
 
   auto result = asyncFuture.wait_for(std::chrono::seconds(30));

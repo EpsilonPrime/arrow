@@ -22,6 +22,7 @@
 
 #include "arrow/status.h"
 #include "arrow/util/functional.h"
+#include "arrow/util/future.h"
 #include "arrow/util/thread_pool.h"
 #include "arrow/util/vector.h"
 
@@ -96,6 +97,19 @@ Future<std::vector<R>> OptionalParallelForAsync(
     }
     return result;
   }
+}
+
+// A parallelizer that takes a `Future<>(int index)` function and calls it with
+// each item from the input array in parallel.
+
+template <class FUNCTION, typename T>
+Future<> ParallelForFuture(std::vector<T> inputs, FUNCTION&& func,
+                           Executor* executor = internal::GetCpuThreadPool()) {
+  std::vector<Future<>> submitted(inputs.size());
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    submitted[i] = DeferNotOk(executor->Submit(func, i));
+  }
+  return AllComplete(submitted);
 }
 
 }  // namespace internal

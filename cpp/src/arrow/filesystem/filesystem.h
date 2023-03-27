@@ -341,7 +341,8 @@ class ARROW_EXPORT SubTreeFileSystem : public FileSystem {
 
   /// \cond FALSE
   using FileSystem::GetFileInfo;
-  /// \endcond
+
+    /// \endcond
   Result<FileInfo> GetFileInfo(const std::string& path) override;
   Result<FileInfoVector> GetFileInfo(const FileSelector& select) override;
 
@@ -518,6 +519,28 @@ Status CopyFiles(const std::shared_ptr<FileSystem>& source_fs,
                  const std::string& destination_base_dir,
                  const io::IOContext& io_context = io::default_io_context(),
                  int64_t chunk_size = 1024 * 1024, bool use_threads = true);
+
+/// \brief Copy files, including from one FileSystem to another
+///
+/// If a source and destination are resident in the same FileSystem FileSystem::CopyFile
+/// will be used, otherwise the file will be opened as a stream in both FileSystems and
+/// chunks copied from the source to the destination. No directories will be created.
+ARROW_EXPORT
+Future<> CopyFilesAsync(const std::vector<FileLocator>& sources,
+                        const std::vector<FileLocator>& destinations,
+                        const io::IOContext& io_context = io::default_io_context(),
+                        int64_t chunk_size = 1024 * 1024, bool use_threads = true);
+
+/// \brief Copy selected files, including from one FileSystem to another
+///
+/// Directories will be created under the destination base directory as needed.
+ARROW_EXPORT
+Future<> CopyFilesAsync(const std::shared_ptr<FileSystem>& source_fs,
+                        const FileSelector& source_sel,
+                        const std::shared_ptr<FileSystem>& destination_fs,
+                        const std::string& destination_base_dir,
+                        const io::IOContext& io_context = io::default_io_context(),
+                        int64_t chunk_size = 1024 * 1024, bool use_threads = true);
 
 struct FileSystemGlobalOptions {
   /// Path to a single PEM file holding all TLS CA certificates
