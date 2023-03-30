@@ -100,7 +100,7 @@ Future<std::vector<R>> OptionalParallelForAsync(
 }
 
 // A parallelizer that takes a `Future<>(int index)` function and calls it with
-// each item from the input array in parallel.
+// the index of each item from the input array in parallel.
 
 template <class FUNCTION, typename T>
 Future<> ParallelForFuture(std::vector<T> inputs, FUNCTION&& func,
@@ -110,6 +110,25 @@ Future<> ParallelForFuture(std::vector<T> inputs, FUNCTION&& func,
     submitted[i] = DeferNotOk(executor->Submit(func, i));
   }
   return AllComplete(submitted);
+}
+
+// A parallelizer that takes a `Future<>(int index)` function and calls it with
+// the index of each item from the input array in parallel, in sequence or in parallel,
+// depending on the input boolean.
+
+template <class FUNCTION, typename T>
+Future<> OptionalParallelForFuture(bool use_threads, std::vector<T> inputs, FUNCTION&& func,
+                           Executor* executor = internal::GetCpuThreadPool()) {
+#if 1
+  use_threads = true;
+#endif
+  if (use_threads) {
+    return ParallelForFuture(inputs, std::forward<FUNCTION>(func), executor);
+  }
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    ARROW_RETURN_NOT_OK(func(i).status());
+  }
+  return Status::OK();
 }
 
 }  // namespace internal

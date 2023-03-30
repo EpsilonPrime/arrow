@@ -2546,7 +2546,7 @@ Result<std::shared_ptr<io::RandomAccessFile>> S3FileSystem::OpenInputFile(
   return impl_->OpenInputFile(info, this);
 }
 
-Result<std::shared_ptr<io::OutputStream>> S3FileSystem::OpenOutputStream(
+Future<std::shared_ptr<io::OutputStream>> S3FileSystem::OpenOutputStreamAsync(
     const std::string& s, const std::shared_ptr<const KeyValueMetadata>& metadata) {
   ARROW_RETURN_NOT_OK(internal::AssertNoTrailingSlash(s));
   ARROW_ASSIGN_OR_RAISE(auto path, S3Path::FromString(s));
@@ -2555,7 +2555,12 @@ Result<std::shared_ptr<io::OutputStream>> S3FileSystem::OpenOutputStream(
   auto ptr = std::make_shared<ObjectOutputStream>(impl_->client_, io_context(), path,
                                                   impl_->options(), metadata);
   RETURN_NOT_OK(ptr->Init());
-  return ptr;
+  return static_cast<std::shared_ptr<io::OutputStream>>(ptr);
+}
+
+Result<std::shared_ptr<io::OutputStream>> S3FileSystem::OpenOutputStream(
+    const std::string& s, const std::shared_ptr<const KeyValueMetadata>& metadata) {
+  return OpenOutputStreamAsync(s, metadata).result();
 }
 
 Result<std::shared_ptr<io::OutputStream>> S3FileSystem::OpenAppendStream(

@@ -34,6 +34,7 @@
 #include "arrow/util/type_fwd.h"
 #include "arrow/util/visibility.h"
 #include "arrow/util/windows_fixup.h"
+#include "arrow/util/future.h"
 
 namespace arrow {
 namespace fs {
@@ -283,6 +284,16 @@ class ARROW_EXPORT FileSystem : public std::enable_shared_from_this<FileSystem> 
   /// Async version of OpenInputFile
   virtual Future<std::shared_ptr<io::RandomAccessFile>> OpenInputFileAsync(
       const FileInfo& info);
+
+  /// Async version of OpenOutputStream
+  virtual Future<std::shared_ptr<io::OutputStream>> OpenOutputStreamAsync(
+      const std::string& path,
+      const std::shared_ptr<const KeyValueMetadata>& metadata) {
+      // MEGAHACK -- Return to being virtual.
+
+      std::shared_ptr<io::OutputStream> obj;
+      return obj;
+  }
 
   /// Open an output stream for sequential writing.
   ///

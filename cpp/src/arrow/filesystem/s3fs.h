@@ -301,6 +301,16 @@ class ARROW_EXPORT S3FileSystem : public FileSystem {
   /// S3Options.background_writes, they can be synchronous or not.
   /// It is recommended to enable background_writes unless you prefer
   /// implementing your own background execution strategy.
+  Future<std::shared_ptr<io::OutputStream>> OpenOutputStreamAsync(
+      const std::string& path,
+      const std::shared_ptr<const KeyValueMetadata>& metadata) override;
+
+  /// Create a sequential output stream for writing to a S3 object.
+  ///
+  /// NOTE: Writes to the stream will be buffered.  Depending on
+  /// S3Options.background_writes, they can be synchronous or not.
+  /// It is recommended to enable background_writes unless you prefer
+  /// implementing your own background execution strategy.
   Result<std::shared_ptr<io::OutputStream>> OpenOutputStream(
       const std::string& path,
       const std::shared_ptr<const KeyValueMetadata>& metadata = {}) override;

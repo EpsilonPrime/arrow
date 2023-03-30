@@ -593,24 +593,33 @@ Result<std::shared_ptr<io::OutputStream>> SlowFileSystem::OpenAppendStream(
 
 Future<> CopyFileAsync(const FileLocator& source, const FileLocator& destination,
                        const io::IOContext& io_context, int64_t chunk_size) {
-    if (source.filesystem->Equals(destination.filesystem)) {
-        return source.filesystem->CopyFile(source.path, destination.path);
-    }
-    Future<std::shared_ptr<io::InputStream>> src = source.filesystem->OpenInputStreamAsync(source.path);
-    return src.Then([destination, chunk_size, io_context](
-            const Future<std::shared_ptr<arrow::io::InputStream>>& sourceResult) -> Future<> {
-        auto src = sourceResult.result().ValueOrDie();
-        Future<std::shared_ptr<const KeyValueMetadata>> metadata_future = src->ReadMetadataAsync();
-        return metadata_future.Then([src, destination, chunk_size, io_context](
-                const Future<std::shared_ptr<const KeyValueMetadata>>& metadata_result) -> Future<> {
-            auto metadata = metadata_result.result().ValueOrDie();
-            Result<std::shared_ptr<io::OutputStream>> destinationResult = destination.filesystem->OpenOutputStream(
-                    destination.path, metadata);
-            auto dest = destinationResult.ValueOrDie();
-            RETURN_NOT_OK( internal::CopyStream(src, dest, chunk_size, io_context));
-            return dest->CloseAsync();
-        });
-    });
+  if (source.filesystem->Equals(destination.filesystem)) {
+      return source.filesystem->CopyFile(source.path, destination.path);
+  }
+  Future<std::shared_ptr<io::InputStream>> source_future = source.filesystem->OpenInputStreamAsync(
+          source.path);
+  return source_future.Then([=](
+          const Future<std::shared_ptr<arrow::io::InputStream>>& src_future) ->
+                  Future<std::shared_ptr<const KeyValueMetadata>> {
+      auto src = src_future.result().ValueOrDie();
+      return src->ReadMetadataAsync();
+  }).Then([=](
+              const Future<std::shared_ptr<const KeyValueMetadata>>& md_future) ->
+              Future<std::shared_ptr<io::OutputStream>> {
+          auto metadata = md_future.result().ValueOrDie();
+          return destination.filesystem->OpenOutputStreamAsync(destination.path, metadata);
+  }).Then(
+          [=](Future<std::shared_ptr<io::OutputStream>> destination_future) ->
+          Future<std::shared_ptr<io::OutputStream>> {
+      auto src = source_future.result().ValueOrDie();
+      auto dest = destination_future.result().ValueOrDie();
+      RETURN_NOT_OK( internal::CopyStream(src, dest, chunk_size, io_context));
+      return destination_future;
+  }).Then([=](
+          const Future<std::shared_ptr<io::OutputStream>>& destination_future) -> Future<> {
+      auto dest = destination_future.result().ValueOrDie();
+      return dest->CloseAsync();
+  });
 }
 
 Future<> CopyFilesAsync(const std::vector<FileLocator>& sources,
@@ -621,19 +630,11 @@ Future<> CopyFilesAsync(const std::vector<FileLocator>& sources,
                             destinations.size(), " paths.")};
   }
 
-#if 1
   auto copy_one_file = [sources, destinations, io_context, chunk_size](size_t i) -> Future<> {
     return CopyFileAsync(sources[i], destinations[i], io_context, chunk_size);
   };
-#else
-  auto copy_one_file = [&](size_t i) -> Future<> {
-    auto init_future = Future<>::Make();
-    return init_future;
-  };
-#endif
 
-  // MEGAHACK -- Use use_threads to call OptionalParallelForFuture.
-  return ParallelForFuture(sources, std::move(copy_one_file), io_context.executor());
+  return OptionalParallelForFuture(use_threads, sources, std::move(copy_one_file), io_context.executor());
 }
 
 Future<> CopyFilesAsync(const std::shared_ptr<FileSystem>& source_fs,
@@ -680,29 +681,7 @@ Future<> CopyFilesAsync(const std::shared_ptr<FileSystem>& source_fs,
 Status CopyFiles(const std::vector<FileLocator>& sources,
                  const std::vector<FileLocator>& destinations,
                  const io::IOContext& io_context, int64_t chunk_size, bool use_threads) {
-  if (sources.size() != destinations.size()) {
-    return Status::Invalid("Trying to copy ", sources.size(), " files into ",
-                           destinations.size(), " paths.");
-  }
-
-  auto copy_one_file = [&](int i) {
-    if (sources[i].filesystem->Equals(destinations[i].filesystem)) {
-      return sources[i].filesystem->CopyFile(sources[i].path, destinations[i].path);
-    }
-
-    ARROW_ASSIGN_OR_RAISE(auto source,
-                          sources[i].filesystem->OpenInputStream(sources[i].path));
-    ARROW_ASSIGN_OR_RAISE(const auto metadata, source->ReadMetadata());
-
-    ARROW_ASSIGN_OR_RAISE(auto destination, destinations[i].filesystem->OpenOutputStream(
-                                                destinations[i].path, metadata));
-    RETURN_NOT_OK(internal::CopyStream(source, destination, chunk_size, io_context));
-    return destination->Close();
-  };
-
-  return ::arrow::internal::OptionalParallelFor(
-      use_threads, static_cast<int>(sources.size()), std::move(copy_one_file),
-      io_context.executor());
+  return CopyFilesAsync(sources, destinations, io_context, chunk_size, use_threads).result().status();
 }
 
 Status CopyFiles(const std::shared_ptr<FileSystem>& source_fs,
@@ -710,40 +689,8 @@ Status CopyFiles(const std::shared_ptr<FileSystem>& source_fs,
                  const std::shared_ptr<FileSystem>& destination_fs,
                  const std::string& destination_base_dir, const io::IOContext& io_context,
                  int64_t chunk_size, bool use_threads) {
-  ARROW_ASSIGN_OR_RAISE(auto source_infos, source_fs->GetFileInfo(source_sel));
-  if (source_infos.empty()) {
-    return Status::OK();
-  }
-
-  std::vector<FileLocator> sources, destinations;
-  std::vector<std::string> dirs;
-
-  for (const FileInfo& source_info : source_infos) {
-    auto relative = internal::RemoveAncestor(source_sel.base_dir, source_info.path());
-    if (!relative.has_value()) {
-      return Status::Invalid("GetFileInfo() yielded path '", source_info.path(),
-                             "', which is outside base dir '", source_sel.base_dir, "'");
-    }
-
-    auto destination_path =
-        internal::ConcatAbstractPath(destination_base_dir, std::string(*relative));
-
-    if (source_info.IsDirectory()) {
-      dirs.push_back(destination_path);
-    } else if (source_info.IsFile()) {
-      sources.push_back({source_fs, source_info.path()});
-      destinations.push_back({destination_fs, destination_path});
-    }
-  }
-
-  auto create_one_dir = [&](int i) { return destination_fs->CreateDir(dirs[i]); };
-
-  dirs = internal::MinimalCreateDirSet(std::move(dirs));
-  RETURN_NOT_OK(::arrow::internal::OptionalParallelFor(
-      use_threads, static_cast<int>(dirs.size()), std::move(create_one_dir),
-      io_context.executor()));
-
-  return CopyFiles(sources, destinations, io_context, chunk_size, use_threads);
+  return CopyFilesAsync(source_fs, source_sel, destination_fs, destination_base_dir,
+                        io_context, chunk_size, use_threads).result().status();
 }
 
 namespace {

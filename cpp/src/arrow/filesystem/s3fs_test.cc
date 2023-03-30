@@ -1146,7 +1146,7 @@ TEST_F(TestS3FS, FileSystemFromUri) {
   AssertFileInfo(fs.get(), path, FileType::File, 8);
 }
 
-TEST_F(TestS3FS, CopyFilesAvoidsDeadlock) {
+TEST_F(TestS3FS, CopyFilesAvoidsDeadlock) {  // TODO -- Rename
   auto input_fs_time = TimePoint(TimePoint::duration(42));
   auto input_fs = std::make_shared<internal::MockFileSystem>(input_fs_time);
 
@@ -1177,16 +1177,14 @@ TEST_F(TestS3FS, CopyFilesAvoidsDeadlock) {
   // Reduce the thread capacity so we can have recover from contention.
   ASSERT_OK(io::SetIOThreadPoolCapacity(originalThreads - 1));
 
-  // Each copy usually takes less than a tenth of a second.
-  auto asyncFuture = std::async(std::launch::async, [&] {
-      return CopyFilesAsync(input_fs, inputFilesSelector, fs_, "bucketname/subdir", context).status();
-  });
+  auto asyncFuture = CopyFilesAsync(input_fs, inputFilesSelector, fs_, "bucketname/subdir", context);
 
-  auto result = asyncFuture.wait_for(std::chrono::seconds(30));
-  EXPECT_TRUE(result != std::future_status::timeout) << "Threadpool contention detected.";
+  EXPECT_TRUE(asyncFuture.Wait(30)) << "Threadpool contention detected.";
 
   // Add back the extra thread so the pool can empty.
   ASSERT_OK(io::SetIOThreadPoolCapacity(originalThreads));
+
+  ASSERT_OK(asyncFuture.status());
 }
 
 TEST_F(TestS3FS, NoCreateDeleteBucket) {
